@@ -1,0 +1,366 @@
+Résumé technique complet du backend MyCampus
+1. Architecture générale
+
+Le backend MyCampus est une API REST développée en Java 17 avec Spring Boot 3.3.4. Il suit une architecture en couches qui sépare les responsabilités :
+
+Controller : reçoit les requêtes HTTP (GET, POST, PUT, DELETE) provenant de l'application Android et les transmet aux services. Il ne contient normalement pas la logique métier.
+Service : contient la logique métier de l'application : validations, calculs, règles de gestion du centre de formation, gestion des notes, absences, étudiants, cours, etc.
+Repository : communique avec la base de données PostgreSQL grâce à Spring Data JPA / Hibernate. Les requêtes sont principalement générées automatiquement par JPA à partir des méthodes des repositories.
+Entity : représente les données de la base sous forme de classes Java. Les neuf entités correspondent aux principales tables du système et leurs relations.
+DTO : permet de contrôler les données échangées entre l'application Android et le backend, notamment pour l'authentification, l'inscription et les informations étudiant.
+Security : gère l'authentification et la vérification des tokens JWT.
+Exception : centralise la gestion des erreurs et transforme les exceptions en réponses HTTP propres pour l'application cliente.
+
+Le fonctionnement général est donc :
+
+Application Android → Controller → Service → Repository → PostgreSQL
+
+et dans l'autre sens :
+
+PostgreSQL → Repository → Service → Controller → Application Android
+
+2. Les neuf entités principales
+
+Le backend contient exactement 9 entités Java :
+
+Utilisateur : informations générales du compte utilisateur.
+Etudiant : informations spécifiques aux étudiants.
+Enseignant : informations concernant les enseignants.
+Cours : informations sur les cours.
+Seance : séances et éléments liés à l'emploi du temps.
+Note : notes obtenues par les étudiants.
+Absence : absences des étudiants.
+Annonce : annonces publiées par le centre.
+Notification : notifications destinées aux utilisateurs/étudiants.
+
+Les relations permettent notamment de relier :
+
+un étudiant à un utilisateur ;
+un cours à un enseignant ;
+une séance à un cours ;
+une note à un étudiant ;
+une absence à un étudiant ;
+une notification à une annonce.
+
+Ces entités constituent la représentation Java du modèle de données PostgreSQL existant.
+
+3. Authentification et sécurité
+
+Le backend utilise Spring Security et des JWT (JSON Web Tokens) pour gérer l'authentification.
+
+Lorsqu'un utilisateur se connecte :
+
+L'application Android envoie son email et son mot de passe.
+Le backend recherche le compte correspondant.
+Le mot de passe est vérifié sous forme hachée avec BCrypt et n'est pas stocké en clair.
+Si les informations sont valides, le backend génère un token JWT signé.
+Le token contient notamment l'identité et le rôle de l'utilisateur.
+L'application transmet ensuite ce token avec les requêtes protégées.
+JwtAuthFilter vérifie le token avant de laisser accéder à la ressource.
+
+Le système est donc stateless : le serveur n'a pas besoin de conserver une session de connexion classique.
+
+La configuration de sécurité se trouve notamment dans :
+
+SecurityConfig.java
+JwtAuthFilter.java
+JwtUtil.java
+
+Les routes sont organisées selon leurs niveaux d'accès :
+
+publiques : inscription et connexion ;
+protégées : consultation des informations accessibles aux utilisateurs connectés ;
+administrateur : opérations de gestion ou de modification nécessitant des droits supplémentaires.
+4. Gestion des erreurs
+
+Le projet possède un système dédié de gestion des exceptions :
+
+BadRequestException.java : données ou requêtes incorrectes ;
+ResourceNotFoundException.java : ressource inexistante ;
+GlobalExceptionHandler.java : centralise la transformation des erreurs en réponses HTTP.
+
+L'objectif est d'éviter qu'une exception Java brute soit renvoyée au client.
+
+L'application Android reçoit ainsi des réponses HTTP cohérentes selon le problème rencontré : données invalides, ressource absente, problème d'authentification ou erreur serveur.
+
+5. Base de données PostgreSQL
+
+Le backend est connecté à une base PostgreSQL existante :
+
+jdbc:postgresql://localhost:5433/MyCampus
+
+
+La connexion utilise :
+
+utilisateur : postgres
+port PostgreSQL : 5433
+base : MyCampus
+pilote : org.postgresql.Driver
+
+Hibernate est configuré avec :
+
+spring.jpa.hibernate.ddl-auto=validate
+
+
+Cela signifie que Spring/Hibernate vérifie que les entités Java correspondent aux tables existantes, mais ne modifie pas automatiquement le schéma de la base.
+
+C'est un choix important puisque les tables ont déjà été créées avec le script SQL.
+
+Hibernate est également configuré pour afficher et formater les requêtes SQL pendant le développement :
+
+spring.jpa.show-sql=true
+spring.jpa.properties.hibernate.format_sql=true
+
+6. Technologies et dépendances
+
+Le projet utilise Maven avec un fichier pom.xml.
+
+Technologies principales :
+
+Java 17
+Spring Boot 3.3.4
+Spring Web pour l'API REST
+Spring Data JPA
+Hibernate
+PostgreSQL
+Spring Security
+JWT avec JJWT 0.12.6
+Spring Validation
+Lombok
+Spring Boot Test
+Spring Security Test
+
+Le fichier pom.xml définit notamment les dépendances nécessaires pour :
+
+créer les endpoints REST ;
+communiquer avec PostgreSQL ;
+gérer les entités et relations avec JPA ;
+sécuriser l'API ;
+valider les données reçues ;
+créer et vérifier les JWT ;
+effectuer les tests.
+7. Configuration du serveur
+
+Le serveur Spring Boot écoute sur :
+
+server.port=8080
+
+
+L'API est donc accessible localement via le port 8080.
+
+La configuration contient également :
+
+logging.level.org.springframework.security=INFO
+logging.level.com.mycampus.backend=DEBUG
+
+
+Ces logs sont particulièrement utiles pendant le développement et le débogage.
+
+La sérialisation des dates est configurée pour utiliser un format ISO plutôt que des timestamps :
+
+spring.jackson.serialization.write-dates-as-timestamps=false
+
+
+Cela facilite notamment les échanges avec l'application Android.
+
+8. Structure réelle du projet
+
+Le code source est organisé sous :
+
+src/main/java/com/mycampus/backend/
+
+Configuration
+config/
+└── SecurityConfig.java
+
+Controllers
+
+Le backend possède 9 controllers :
+
+controller/
+├── AbsenceController.java
+├── AnnonceController.java
+├── AuthController.java
+├── CoursController.java
+├── EnseignantController.java
+├── EtudiantController.java
+├── NoteController.java
+├── NotificationController.java
+└── SeanceController.java
+
+
+Ils exposent les fonctionnalités de l'API correspondant aux différents domaines du projet.
+
+DTO
+dto/
+├── AuthResponse.java
+├── EtudiantDto.java
+├── LoginRequest.java
+└── RegisterRequest.java
+
+
+Les DTO servent notamment à recevoir les données de connexion/inscription et à contrôler les données renvoyées au client.
+
+Entities
+entity/
+├── Absence.java
+├── Annonce.java
+├── Cours.java
+├── Enseignant.java
+├── Etudiant.java
+├── Note.java
+├── Notification.java
+├── Seance.java
+└── Utilisateur.java
+
+Exceptions
+exception/
+├── BadRequestException.java
+├── GlobalExceptionHandler.java
+└── ResourceNotFoundException.java
+
+Repositories
+
+Il existe un repository pour chacune des neuf entités :
+
+repository/
+├── AbsenceRepository.java
+├── AnnonceRepository.java
+├── CoursRepository.java
+├── EnseignantRepository.java
+├── EtudiantRepository.java
+├── NoteRepository.java
+├── NotificationRepository.java
+├── SeanceRepository.java
+└── UtilisateurRepository.java
+
+Sécurité
+security/
+├── JwtAuthFilter.java
+└── JwtUtil.java
+
+Services
+
+Le projet possède également 9 services, correspondant aux principaux domaines fonctionnels :
+
+service/
+├── AbsenceService.java
+├── AnnonceService.java
+├── AuthService.java
+├── CoursService.java
+├── EnseignantService.java
+├── EtudiantService.java
+├── NoteService.java
+├── NotificationService.java
+└── SeanceService.java
+
+9. Classe principale
+
+Le démarrage de l'application est assuré par :
+
+BackendApplication.java
+
+
+Elle constitue le point d'entrée de l'application Spring Boot.
+
+10. Tests
+
+Le projet possède une structure dédiée aux tests :
+
+src/test/java/com/mycampus/backend/
+
+
+Les dépendances spring-boot-starter-test et spring-security-test sont présentes dans le pom.xml.
+
+La structure de test existe donc, même si l'arborescence fournie ne montre pas encore de classes de tests concrètes.
+
+11. Dossier target
+
+Le dossier :
+
+target/
+
+
+correspond aux fichiers générés lors de la compilation Maven.
+
+Il contient notamment :
+
+les fichiers .class compilés ;
+application.properties copié dans les classes ;
+les classes compilées des controllers ;
+les classes compilées des services ;
+les classes compilées des entities ;
+les classes compilées des repositories ;
+les classes compilées de sécurité ;
+les fichiers générés par Maven ;
+les éléments liés à la compilation et aux tests.
+
+Il ne s'agit donc pas du code source principal, mais du résultat de compilation du projet.
+
+12. Fonctionnement concret
+
+Prenons l'exemple d'un étudiant qui souhaite consulter ses notes.
+
+L'étudiant saisit ses identifiants dans l'application Android.
+AuthController reçoit la demande de connexion.
+AuthService vérifie les informations du compte.
+Spring Security/BCrypt vérifie le mot de passe.
+JwtUtil génère un token JWT si l'authentification réussit.
+L'application Android conserve le token.
+Lorsqu'elle demande les notes, elle envoie le JWT avec sa requête.
+JwtAuthFilter vérifie le token.
+NoteController reçoit la demande.
+NoteService applique les règles métier nécessaires.
+NoteRepository récupère les notes depuis PostgreSQL.
+Les données remontent jusqu'au controller.
+Le backend renvoie une réponse HTTP à l'application Android.
+L'application affiche les notes à l'étudiant.
+
+Le même principe est utilisé pour les cours, séances, absences, enseignants, annonces et notifications.
+
+13. Vision non technique
+
+On peut considérer le backend comme le cerveau central de MyCampus.
+
+L'application Android constitue l'interface visible par l'étudiant, tandis que le backend :
+
+reçoit les demandes ;
+vérifie l'identité de l'utilisateur ;
+vérifie ses droits ;
+applique les règles métier ;
+récupère ou modifie les données ;
+communique avec PostgreSQL ;
+renvoie une réponse structurée à l'application.
+
+La base de données représente donc la source centrale des informations. Tous les utilisateurs ne doivent pas avoir accès aux mêmes données : un étudiant doit pouvoir consulter ses propres informations, tandis que certaines opérations sont réservées aux administrateurs.
+
+Cette organisation permet d'avoir une source de données centralisée, cohérente et sécurisée, plutôt que de laisser chaque téléphone gérer indépendamment les informations du centre.
+
+14. Points importants à retenir
+
+Le backend MyCampus est donc une API REST Spring Boot structurée et sécurisée, basée sur :
+
+Android → API REST → Spring Boot → JPA/Hibernate → PostgreSQL
+
+avec :
+
+9 entités
+9 repositories
+9 services
+9 controllers
+4 DTO
+2 composants JWT
+1 configuration Spring Security
+3 composants de gestion des exceptions
+Java 17
+Spring Boot 3.3.4
+PostgreSQL
+JWT + BCrypt
+Maven
+Hibernate/JPA
+Validation des DTO
+tests Spring Boot et Spring Security
+
+Le projet source se trouve dans src/main/java, la configuration dans src/main/resources/application.properties, et les fichiers compilés sont générés dans target/.
+
+Enfin, la configuration actuelle est adaptée au développement local, mais certains éléments doivent impérativement être sécurisés avant une mise en production, notamment les identifiants PostgreSQL et la clé secrète JWT.
