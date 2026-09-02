@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <!-- Requis pour parler à l'API Spring Boot -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
+    <application
+        android:name=".MyCampusApplication"
+        android:allowBackup="true"
+        android:label="MyCampus"
+        android:theme="@style/Theme.MyCampus"
+        android:usesCleartextTraffic="true">
+        <!--
+          usesCleartextTraffic="true" est nécessaire en dev car ton backend tourne
+          en http:// (pas https). À retirer / restreindre via un network_security_config
+          avant toute mise en production.
+        -->
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"
+            android:theme="@style/Theme.MyCampus">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+    </application>
+</manifest>
